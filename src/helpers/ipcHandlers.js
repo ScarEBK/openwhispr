@@ -11454,6 +11454,22 @@ class IPCHandlers {
     ipcMain.handle("get-stt-config", handleSttConfigRequest);
 
     ipcMain.handle("get-workspace-policy", async (event, accountId, expectedAuthGeneration) => {
+      // Personal fork: with no OpenWhispr Cloud API configured there is no
+      // workspace to manage this device, so the account is unmanaged. Without
+      // this, the failed fetch fails closed and blocks every setup option.
+      if (!getApiUrl()) {
+        return {
+          success: true,
+          status: "current",
+          revision: Date.now(),
+          accountId,
+          authGeneration: expectedAuthGeneration,
+          managed: false,
+          policy: null,
+          policyUpdatedAt: null,
+          endpointSupported: false,
+        };
+      }
       const authHeaders = await getAuthHeader(event);
       const snapshot = await workspacePolicyManager.getPolicy({
         accountId,
