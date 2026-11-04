@@ -1240,6 +1240,9 @@ class WindowManager {
   // Prompt Writer: an ordinary dictation whose transcript is rewritten into an
   // AI-agent prompt before it is pasted.
   sendTogglePromptWriter() {
+    if (!this._isDictatingToggle) {
+      require("./promptOverlay").beginPromptRecording(this.mainWindow);
+    }
     this._sendDictationToggle("toggle-prompt-writer", "dictation");
   }
 

@@ -19,3 +19,8 @@
 - **Discord:** use the Discord link (RPC with a small Discord app the owner authorizes once). Not a keybind.
 - **Auto send (press Enter after paste):** both keys.
 - **On-screen box:** show only (no editing, never takes focus), Page Up only, bottom center, stays on top incl. games, shows status + raw text then final, fades after paste.
+
+## 2026-11-03 — Box position
+
+- Prompt box sits **right above the text box being typed in** (T3 Code, Claude), on that screen. Not fixed bottom-center.
+- **Hide the right-side OpenWhispr bubble for Page Up**; keep it for Delete.
