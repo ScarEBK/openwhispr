@@ -78,6 +78,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const lastStartOptionsRef = useRef({
     voiceAgentRequested: false,
     translationRequested: false,
+    promptWriterRequested: false,
   });
   const {
     onToggle,
@@ -139,9 +140,17 @@ export const useAudioRecording = (toast, options = {}) => {
   }, []);
 
   const performStartRecording = useCallback(
-    async ({ voiceAgentRequested = false, translationRequested = false } = {}) => {
+    async ({
+      voiceAgentRequested = false,
+      translationRequested = false,
+      promptWriterRequested = false,
+    } = {}) => {
       if (startLockRef.current) return false;
-      lastStartOptionsRef.current = { voiceAgentRequested, translationRequested };
+      lastStartOptionsRef.current = {
+        voiceAgentRequested,
+        translationRequested,
+        promptWriterRequested,
+      };
       startLockRef.current = true;
       stopRequestedDuringStartRef.current = false;
       pushForceStoppedRef.current = false;
@@ -193,6 +202,9 @@ export const useAudioRecording = (toast, options = {}) => {
         audioManagerRef.current.setVoiceAgentRequested(voiceAgentRequested);
         audioManagerRef.current.setAssistantSelectionContext(assistantSelectionContext);
         audioManagerRef.current.setTranslationRequested(translationRequested);
+        audioManagerRef.current.setPromptWriterRequested?.(
+          promptWriterRequested && !voiceAgentRequested && !translationRequested
+        );
         // Covers the toggle path with freshly-set flags; the signature dedup
         // makes this a no-op when the prepare handler already reported the
         // same kind ahead of the flags being set.
@@ -658,6 +670,60 @@ export const useAudioRecording = (toast, options = {}) => {
             result.text = expandSnippets(result.text, getSettings().snippets);
           }
 
+          // Prompt Writer: rewrite the spoken ramble into an AI-agent prompt with
+          // the user's signed-in CLI (Claude Code / Codex) before pasting. On any
+          // failure the plain transcript is pasted instead, so nothing is lost.
+          if (
+            audioManagerRef.current?.promptWriterRequested &&
+            !result.assistantConversation &&
+            !result.selectionEdit?.sessionId
+          ) {
+            audioManagerRef.current.setPromptWriterRequested(false);
+            const spokenText = result.text;
+            const readPref = (key, fallback = "") => {
+              try {
+                return localStorage.getItem(key) ?? fallback;
+              } catch {
+                return fallback;
+              }
+            };
+            pastesInFlightRef.current += 1;
+            setIsPasting(true);
+            try {
+              window.electronAPI
+                ?.updateDictationPreview?.(t("hooks.audioRecording.promptWriter.working"))
+                ?.catch?.(() => {});
+              const written = await window.electronAPI.promptWriterRun?.({
+                text: spokenText,
+                tool: readPref("promptWriterTool", "claude"),
+                model: readPref("promptWriterModel", ""),
+                extraInstructions: readPref("promptWriterExtraInstructions", ""),
+                customPath: readPref("promptWriterCustomPath", ""),
+              });
+              if (written?.success && written.text?.trim()) {
+                result.rawText = result.rawText ?? spokenText;
+                result.text = written.text.trim();
+              } else {
+                logger.warn(
+                  "Prompt writer failed, pasting plain transcript",
+                  { error: written?.error },
+                  "reasoning"
+                );
+                toast({
+                  title: t("hooks.audioRecording.promptWriter.failedTitle"),
+                  description:
+                    written?.error || t("hooks.audioRecording.promptWriter.failedDescription"),
+                  variant: "default",
+                });
+              }
+            } catch (error) {
+              logger.warn("Prompt writer crashed", { error: error?.message }, "reasoning");
+            } finally {
+              pastesInFlightRef.current -= 1;
+              if (pastesInFlightRef.current === 0) setIsPasting(false);
+            }
+          }
+
           setTranscript(result.text);
           if (result.assistantConversation) {
             window.electronAPI?.hideDictationPreview?.();
@@ -1022,6 +1088,7 @@ export const useAudioRecording = (toast, options = {}) => {
     const handleToggle = async ({
       voiceAgentRequested = false,
       translationRequested = false,
+      promptWriterRequested = false,
     } = {}) => {
       if (!audioManagerRef.current) return;
       const currentState = audioManagerRef.current.getState();
@@ -1031,7 +1098,11 @@ export const useAudioRecording = (toast, options = {}) => {
       if (startLockRef.current || currentState.isRecording) {
         await performStopRecording();
       } else if (canStartDictation(currentState)) {
-        await performStartRecording({ voiceAgentRequested, translationRequested });
+        await performStartRecording({
+          voiceAgentRequested,
+          translationRequested,
+          promptWriterRequested,
+        });
       }
     };
 
@@ -1055,6 +1126,11 @@ export const useAudioRecording = (toast, options = {}) => {
 
     const disposeTranslationToggle = window.electronAPI.onToggleTranslation?.(() => {
       handleToggle({ translationRequested: true });
+      onToggle?.();
+    });
+
+    const disposePromptWriterToggle = window.electronAPI.onTogglePromptWriter?.(() => {
+      handleToggle({ promptWriterRequested: true });
       onToggle?.();
     });
 
@@ -1105,6 +1181,7 @@ export const useAudioRecording = (toast, options = {}) => {
       disposeToggle?.();
       disposeVoiceAgentToggle?.();
       disposeTranslationToggle?.();
+      disposePromptWriterToggle?.();
       disposeStart?.();
       disposePrepare?.();
       disposeCancelPreparation?.();

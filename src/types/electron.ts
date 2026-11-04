@@ -1544,6 +1544,7 @@ declare global {
       onToggleDictation: (callback: () => void) => () => void;
       onToggleVoiceAgent?: (callback: () => void) => () => void;
       onToggleTranslation?: (callback: () => void) => () => void;
+      onTogglePromptWriter?: (callback: () => void) => () => void;
       onOpenAssistantPanel?: (callback: () => void) => () => void;
       onMeetingStartRefused?: (callback: (code: string) => void) => () => void;
       onStartDictation?: (callback: () => void) => () => void;
@@ -3117,6 +3118,20 @@ declare global {
       getVoiceAgentKey?: () => Promise<string>;
       updateTranslationHotkey?: (hotkey: string) => Promise<{ success: boolean; message?: string }>;
       getTranslationKey?: () => Promise<string>;
+      updatePromptWriterHotkey?: (
+        hotkey: string
+      ) => Promise<{ success: boolean; message?: string }>;
+      getPromptWriterKey?: () => Promise<string>;
+      promptWriterRun?: (options: {
+        text: string;
+        tool?: string;
+        model?: string;
+        extraInstructions?: string;
+        customPath?: string;
+      }) => Promise<{ success: boolean; text?: string; error?: string; ms: number }>;
+      promptWriterPresets?: () => Promise<
+        Array<{ id: string; label: string; defaultModel: string }>
+      >;
       createAgentConversation?: (
         title: string,
         noteId?: number | null,

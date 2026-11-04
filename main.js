@@ -1380,6 +1380,31 @@ async function startApp() {
     hotkeyManager.notifyRestoreFailures(savedTranslationKey, result);
   }
 
+  // Set up Prompt Writer hotkey (dictation rewritten into an AI-agent prompt)
+  const isPromptWriterPress = createHotkeyRepeatGate();
+  const promptWriterHotkeyCallback = () => {
+    if (!isPromptWriterPress()) return;
+    windowManager.sendTogglePromptWriter();
+  };
+  windowManager._promptWriterHotkeyCallback = promptWriterHotkeyCallback;
+
+  const savedPromptWriterKey = environmentManager.getPromptWriterKey?.() || "";
+  if (savedPromptWriterKey) {
+    const result = await hotkeyManager.registerSlot(
+      "promptWriter",
+      savedPromptWriterKey,
+      promptWriterHotkeyCallback
+    );
+    if (!result.success) {
+      debugLogger.warn(
+        "Failed to restore prompt writer hotkey",
+        { hotkey: savedPromptWriterKey },
+        "hotkey"
+      );
+    }
+    hotkeyManager.notifyRestoreFailures(savedPromptWriterKey, result);
+  }
+
   // Set up meeting mode hotkey
   const isMeetingPress = createHotkeyRepeatGate();
   const meetingHotkeyCallback = () => {
@@ -1931,6 +1956,8 @@ async function startApp() {
         windowManager.sendToggleVoiceAgent();
       } else if (hotkeyManager.slotHasHotkey("translation", key)) {
         windowManager.sendToggleTranslation();
+      } else if (hotkeyManager.slotHasHotkey("promptWriter", key)) {
+        windowManager.sendTogglePromptWriter();
       } else if (hotkeyManager.slotHasHotkey("meeting", key)) {
         windowManager.startManualMeeting({ activate: false });
       }

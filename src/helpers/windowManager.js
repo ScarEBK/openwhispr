@@ -1237,6 +1237,12 @@ class WindowManager {
     this._sendDictationToggle("toggle-translation", "translation");
   }
 
+  // Prompt Writer: an ordinary dictation whose transcript is rewritten into an
+  // AI-agent prompt before it is pasted.
+  sendTogglePromptWriter() {
+    this._sendDictationToggle("toggle-prompt-writer", "dictation");
+  }
+
   // The pill explains a refused meeting start the way it explains a refused
   // tray action: the start may have come from a hotkey with nothing else shown.
   sendMeetingStartRefused(code) {

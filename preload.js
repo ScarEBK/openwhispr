@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onToggleDictation: registerListener("toggle-dictation", (callback) => () => callback()),
   onToggleVoiceAgent: registerListener("toggle-voice-agent", (callback) => () => callback()),
   onToggleTranslation: registerListener("toggle-translation", (callback) => () => callback()),
+  onTogglePromptWriter: registerListener("toggle-prompt-writer", (callback) => () => callback()),
   onOpenAssistantPanel: registerListener("open-assistant-panel", (callback) => () => callback()),
   onMeetingStartRefused: registerListener(
     "meeting-start-refused",
@@ -1142,6 +1143,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getVoiceAgentKey: () => ipcRenderer.invoke("get-voice-agent-key"),
   updateTranslationHotkey: (hotkey) => ipcRenderer.invoke("update-translation-hotkey", hotkey),
   getTranslationKey: () => ipcRenderer.invoke("get-translation-key"),
+  updatePromptWriterHotkey: (hotkey) => ipcRenderer.invoke("update-prompt-writer-hotkey", hotkey),
+  getPromptWriterKey: () => ipcRenderer.invoke("get-prompt-writer-key"),
+  promptWriterRun: (options) => ipcRenderer.invoke("prompt-writer-run", options),
+  promptWriterPresets: () => ipcRenderer.invoke("prompt-writer-presets"),
   onPreviewText: registerListener("preview-text", (callback) => (_event, text) => callback(text)),
   onPreviewAppend: registerListener(
     "preview-append",

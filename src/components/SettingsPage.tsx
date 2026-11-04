@@ -79,6 +79,7 @@ import { useUpdater } from "../hooks/useUpdater";
 import PromptStudio from "./ui/PromptStudio";
 import { ProviderTabs } from "./ui/ProviderTabs";
 import { HotkeyListInput } from "./ui/HotkeyListInput";
+import PromptWriterSettings from "./settings/PromptWriterSettings";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { useHotkeyModeInfo } from "../hooks/useHotkeyModeInfo";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -1527,6 +1528,21 @@ export default function SettingsPage({
         t
       ),
     [dictationKey, meetingKey, translationKey, t]
+  );
+
+  const validatePromptWriterHotkey = useCallback(
+    (hotkey: string) =>
+      validateHotkeyForSlot(
+        hotkey,
+        {
+          "settingsPage.general.hotkey.title": dictationKey,
+          "settingsPage.general.meetingHotkey.title": meetingKey,
+          "settingsPage.general.voiceAgentHotkey.title": voiceAgentKey,
+          "settingsPage.general.translationHotkey.title": translationKey,
+        },
+        t
+      ),
+    [dictationKey, meetingKey, voiceAgentKey, translationKey, t]
   );
 
   const validateTranslationHotkey = useCallback(
@@ -4096,6 +4112,12 @@ EOF`,
                 </SettingsPanelRow>
               </SettingsPanel>
             </div>
+
+            {/* Prompt Writer Hotkey */}
+            <PromptWriterSettings
+              validate={validatePromptWriterHotkey}
+              disabled={isAgentHotkeyCommitting}
+            />
 
             {/* Meeting Mode Hotkey */}
             <div>

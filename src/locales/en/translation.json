@@ -1031,6 +1031,11 @@
         "title": "Transcription not pasted",
         "wlCopyMissing": "On this desktop, Wayland apps can only read pasted text through wl-copy. Install wl-clipboard to paste your dictations.",
         "wlCopyFailed": "wl-copy couldn't copy the text for Wayland apps, so it wasn't pasted. Press Retry to try again."
+      },
+      "promptWriter": {
+        "working": "Writing your prompt...",
+        "failedTitle": "Prompt writer didn't finish",
+        "failedDescription": "Your plain words were pasted instead."
       }
     },
     "clipboard": {
@@ -2530,6 +2535,25 @@
       "translationHotkey": {
         "title": "Translation Hotkey",
         "description": "Dictate in any language — the pasted text comes out translated"
+      },
+      "promptWriterHotkey": {
+        "title": "Prompt Writer Hotkey",
+        "description": "Talk as long as you like. When you stop, your words are turned into a clear, well-structured prompt for Claude Code or Codex, then pasted."
+      },
+      "promptWriter": {
+        "toolLabel": "Which AI writes the prompt",
+        "modelLabel": "Model",
+        "modelPlaceholder": "Leave empty for {{model}}",
+        "modelPlaceholderDefault": "Leave empty for the tool's default",
+        "modelHint": "Claude: opus (best), sonnet (faster), haiku (fastest). Uses your plan, no API key.",
+        "extraLabel": "Extra instructions (optional)",
+        "extraPlaceholder": "e.g. Always ask the agent to show me a screenshot when done.",
+        "pathLabel": "Custom program path (optional)",
+        "pathPlaceholder": "Leave empty to find it automatically",
+        "test": "Test it",
+        "testing": "Writing a test prompt...",
+        "testOk": "Works! Took {{seconds}}s",
+        "testFailed": "It didn't work. Check that you are signed in to the tool."
       }
     },
     "permissions": {

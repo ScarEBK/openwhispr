@@ -294,8 +294,12 @@ function resolveReasoningRoute(
   voiceAgentRequested,
   translationRequested,
   screenContext,
-  detectedLanguage
+  detectedLanguage,
+  promptWriterRequested = false
 ) {
+  // Prompt Writer recordings paste the raw transcript into the prompt writer,
+  // so the normal cleanup/agent/translation step is skipped (saves time).
+  if (promptWriterRequested) return { kind: "skip", cleanupReachable: false };
   const wakeWordLanguage = resolveWakeWordLanguage(settings, detectedLanguage, text);
   const cleanup = selectResolvedLLMConfig(settings, "dictationCleanup");
   // Pin cleanup to 0 where supported; bridges otherwise default to 0.7 (local)
@@ -739,6 +743,7 @@ class AudioManager {
     this.voiceAgentRequested = false;
     this.translationRequested = false;
     this.translationApplied = false;
+    this.promptWriterRequested = false;
     this.pendingSelectionEdit = null;
     this.pendingAssistantConversation = null;
     this.pendingCleanupFailure = null;
@@ -1081,6 +1086,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   setTranslationRequested(requested) {
     this.translationRequested = requested;
     this.translationApplied = false;
+  }
+
+  setPromptWriterRequested(requested) {
+    this.promptWriterRequested = !!requested;
   }
 
   // In translation mode the STT hint is the configured source language, not
@@ -3471,7 +3480,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           agentName,
           this.voiceAgentRequested,
           this.translationRequested,
-          screenContext
+          screenContext,
+          undefined,
+          this.promptWriterRequested
         );
         if (this.translationRequested && route.kind !== "translation") {
           this.notifyTranslationFallback("unreachable");
@@ -3801,7 +3812,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.voiceAgentRequested,
         this.translationRequested,
         screenContext,
-        result.sttLanguage
+        result.sttLanguage,
+        this.promptWriterRequested
       );
       if (this.translationRequested && route.kind !== "translation") {
         this.notifyTranslationFallback("unreachable");
@@ -6142,7 +6154,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.voiceAgentRequested,
         this.translationRequested,
         screenContext,
-        streamingSttLanguage
+        streamingSttLanguage,
+        this.promptWriterRequested
       );
       if (this.translationRequested && route.kind !== "translation") {
         this.notifyTranslationFallback("unreachable");

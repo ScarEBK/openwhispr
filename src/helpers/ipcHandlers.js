@@ -13039,6 +13039,62 @@ class IPCHandlers {
       return this.environmentManager.getTranslationKey?.() || "";
     });
 
+    ipcMain.handle("update-prompt-writer-hotkey", async (_event, hotkey) => {
+      const hotkeyManager = this.windowManager.hotkeyManager;
+      const promptWriterCallback = this.windowManager._promptWriterHotkeyCallback;
+      if (!promptWriterCallback) {
+        return { success: false };
+      }
+
+      if (!hotkey) {
+        const removed = await hotkeyManager.unregisterSlot("promptWriter");
+        if (removed === false) return { success: false };
+        this.environmentManager.savePromptWriterKey?.("");
+        this.windowManager.reconcileNativeKeyListeners();
+        this._notifyHotkeyChanged("");
+        return { success: true, message: "Prompt writer hotkey cleared" };
+      }
+
+      const result = await hotkeyManager.registerSlot(
+        "promptWriter",
+        hotkey,
+        promptWriterCallback,
+        { atomic: true }
+      );
+      this.windowManager.reconcileNativeKeyListeners();
+      if (result.success) {
+        this.environmentManager.savePromptWriterKey?.(hotkey);
+        this._notifyHotkeyChanged(hotkey);
+        return { success: true, message: `Prompt writer hotkey updated to: ${hotkey}` };
+      }
+
+      return { success: false, message: result.error };
+    });
+
+    ipcMain.handle("get-prompt-writer-key", async () => {
+      return this.environmentManager.getPromptWriterKey?.() || "";
+    });
+
+    ipcMain.handle("prompt-writer-run", async (_event, options = {}) => {
+      const { runPromptWriter } = require("./promptWriter");
+      try {
+        return await runPromptWriter({
+          text: String(options.text || ""),
+          tool: String(options.tool || "claude"),
+          model: String(options.model || ""),
+          extraInstructions: String(options.extraInstructions || ""),
+          customPath: String(options.customPath || ""),
+        });
+      } catch (error) {
+        return { success: false, error: error?.message || String(error), ms: 0 };
+      }
+    });
+
+    ipcMain.handle("prompt-writer-presets", async () => {
+      const { listPresets } = require("./promptWriter");
+      return listPresets();
+    });
+
     ipcMain.handle("acquire-recording-lock", async (_event, pipeline) => {
       if (this._activeRecordingPipeline && this._activeRecordingPipeline !== pipeline) {
         return { success: false, holder: this._activeRecordingPipeline };
