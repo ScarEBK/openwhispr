@@ -3132,6 +3132,36 @@ declare global {
       promptWriterPresets?: () => Promise<
         Array<{ id: string; label: string; defaultModel: string }>
       >;
+      discordVoiceStatus?: () => Promise<{
+        configured: boolean;
+        connected: boolean;
+        clientId: string;
+      }>;
+      discordVoiceSetCredentials?: (creds: {
+        clientId: string;
+        clientSecret: string;
+      }) => Promise<{ configured: boolean; connected: boolean; clientId: string }>;
+      discordVoiceConnect?: () => Promise<{
+        success: boolean;
+        error?: string;
+        muted?: boolean;
+        configured: boolean;
+        connected: boolean;
+        clientId: string;
+      }>;
+      discordVoiceDisconnect?: () => Promise<{
+        configured: boolean;
+        connected: boolean;
+        clientId: string;
+      }>;
+      discordVoiceMute?: () => Promise<{ success: boolean; error?: string }>;
+      discordVoiceRestore?: () => Promise<{ success: boolean; error?: string }>;
+      promptOverlayUpdate?: (payload: {
+        state: string;
+        label?: string;
+        text?: string;
+      }) => Promise<void>;
+      sendEnterKey?: () => Promise<{ success: boolean; error?: string }>;
       createAgentConversation?: (
         title: string,
         noteId?: number | null,

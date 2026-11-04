@@ -1033,9 +1033,11 @@
         "wlCopyFailed": "wl-copy couldn't copy the text for Wayland apps, so it wasn't pasted. Press Retry to try again."
       },
       "promptWriter": {
-        "working": "Writing your prompt...",
+        "working": "Writing your prompt with Claude...",
         "failedTitle": "Prompt writer didn't finish",
-        "failedDescription": "Your plain words were pasted instead."
+        "failedDescription": "Your plain words were pasted instead.",
+        "listening": "Listening",
+        "done": "Done, pasted"
       }
     },
     "clipboard": {
@@ -2554,6 +2556,27 @@
         "testing": "Writing a test prompt...",
         "testOk": "Works! Took {{seconds}}s",
         "testFailed": "It didn't work. Check that you are signed in to the tool."
+      },
+      "dictationExtras": {
+        "title": "While you dictate",
+        "description": "Extras that run around every dictation.",
+        "autoSend": "Auto send",
+        "autoSendDescription": "Press Enter right after the text is pasted."
+      },
+      "discordVoice": {
+        "toggle": "Mute me on Discord",
+        "toggleDescription": "Mutes your Discord mic while recording, then unmutes. Leaves you muted if you already were.",
+        "appLabel": "Discord app (one-time setup)",
+        "clientIdPlaceholder": "Discord app Client ID",
+        "secretPlaceholder": "Discord app Client Secret",
+        "secretSaved": "Client Secret saved (type to replace)",
+        "connect": "Connect Discord",
+        "reconnect": "Reconnect",
+        "disconnect": "Disconnect",
+        "waiting": "Check Discord and click Authorize...",
+        "connected": "Connected to Discord",
+        "notConnected": "Not connected",
+        "failed": "Couldn't connect. Is Discord open?"
       }
     },
     "permissions": {

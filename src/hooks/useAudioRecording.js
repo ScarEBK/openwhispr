@@ -44,6 +44,28 @@ const WAYLAND_CLIPBOARD_REASON_KEYS = {
 };
 const COMPANION_AUDIO_LEVEL_INTERVAL_MS = 80;
 
+// --- Owner fork additions: Discord mute, auto send, prompt overlay ---
+function readFlag(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v === "true";
+  } catch {
+    return fallback;
+  }
+}
+// Pause media is the app's own setting; Discord mute is ours.
+function quietOthersForDictation(pauseMedia) {
+  if (pauseMedia) window.electronAPI?.pauseMediaPlayback?.();
+  if (readFlag("muteDiscordOnDictation", true)) window.electronAPI?.discordVoiceMute?.();
+}
+function restoreOthersAfterDictation(pauseMedia) {
+  if (pauseMedia) window.electronAPI?.resumeMediaPlayback?.();
+  if (readFlag("muteDiscordOnDictation", true)) window.electronAPI?.discordVoiceRestore?.();
+}
+function promptOverlay(state, label, text) {
+  window.electronAPI?.promptOverlayUpdate?.({ state, label, text })?.catch?.(() => {});
+}
+
 export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
@@ -290,8 +312,9 @@ export const useAudioRecording = (toast, options = {}) => {
         // A quick tap can end the recording inside the start call itself (deferred
         // streaming stop) — don't pause media for a recording that already ended. See #1060.
         if (didStart && audioManagerRef.current.getState().isRecording) {
-          if (getSettings().pauseMediaOnDictation) {
-            window.electronAPI?.pauseMediaPlayback?.();
+          quietOthersForDictation(getSettings().pauseMediaOnDictation);
+          if (audioManagerRef.current?.promptWriterRequested) {
+            promptOverlay("listening", t("hooks.audioRecording.promptWriter.listening"), "");
           }
           window.electronAPI?.registerCancelHotkey?.("Escape");
           void playStartCue();
@@ -536,8 +559,8 @@ export const useAudioRecording = (toast, options = {}) => {
         if (!isRecording) {
           window.electronAPI?.unregisterCancelHotkey?.();
           // Resume media the instant recording ends, not after transcription.
-          if (wasRecordingRef.current && getSettings().pauseMediaOnDictation) {
-            window.electronAPI?.resumeMediaPlayback?.();
+          if (wasRecordingRef.current) {
+            restoreOthersAfterDictation(getSettings().pauseMediaOnDictation);
           }
         }
         wasRecordingRef.current = isRecording;
@@ -604,9 +627,8 @@ export const useAudioRecording = (toast, options = {}) => {
             technicalDetails: error?.technicalDetails,
           });
         }
-        if (getSettings().pauseMediaOnDictation) {
-          window.electronAPI?.resumeMediaPlayback?.();
-        }
+        restoreOthersAfterDictation(getSettings().pauseMediaOnDictation);
+        promptOverlay("hidden");
       },
       onNoAudio: () => {
         setIsPreparing(false);
@@ -617,9 +639,8 @@ export const useAudioRecording = (toast, options = {}) => {
           message: t("hooks.audioRecording.noAudio.title"),
         });
         window.electronAPI?.hideDictationPreview?.();
-        if (getSettings().pauseMediaOnDictation) {
-          window.electronAPI?.resumeMediaPlayback?.();
-        }
+        restoreOthersAfterDictation(getSettings().pauseMediaOnDictation);
+        promptOverlay("hidden");
         showDictationError({
           title: t("hooks.audioRecording.noAudio.title"),
           description: t("hooks.audioRecording.noAudio.description"),
@@ -693,6 +714,7 @@ export const useAudioRecording = (toast, options = {}) => {
               window.electronAPI
                 ?.updateDictationPreview?.(t("hooks.audioRecording.promptWriter.working"))
                 ?.catch?.(() => {});
+              promptOverlay("working", t("hooks.audioRecording.promptWriter.working"), spokenText);
               const written = await window.electronAPI.promptWriterRun?.({
                 text: spokenText,
                 tool: readPref("promptWriterTool", "claude"),
@@ -703,7 +725,13 @@ export const useAudioRecording = (toast, options = {}) => {
               if (written?.success && written.text?.trim()) {
                 result.rawText = result.rawText ?? spokenText;
                 result.text = written.text.trim();
+                promptOverlay("done", t("hooks.audioRecording.promptWriter.done"), result.text);
               } else {
+                promptOverlay(
+                  "error",
+                  t("hooks.audioRecording.promptWriter.failedDescription"),
+                  spokenText
+                );
                 logger.warn(
                   "Prompt writer failed, pasting plain transcript",
                   { error: written?.error },
@@ -718,6 +746,11 @@ export const useAudioRecording = (toast, options = {}) => {
               }
             } catch (error) {
               logger.warn("Prompt writer crashed", { error: error?.message }, "reasoning");
+              promptOverlay(
+                "error",
+                t("hooks.audioRecording.promptWriter.failedDescription"),
+                spokenText
+              );
             } finally {
               pastesInFlightRef.current -= 1;
               if (pastesInFlightRef.current === 0) setIsPasting(false);
@@ -987,6 +1020,11 @@ export const useAudioRecording = (toast, options = {}) => {
               }
             } else {
               pasteSucceeded = await pasteTranscript();
+              // Auto send: press Enter after the paste lands (owner setting, default on).
+              if (pasteSucceeded && readFlag("autoSendAfterPaste", true)) {
+                await new Promise((resolve) => setTimeout(resolve, 150));
+                await window.electronAPI?.sendEnterKey?.();
+              }
             }
             logger.info(
               "Paste timing",
@@ -1210,9 +1248,8 @@ export const useAudioRecording = (toast, options = {}) => {
       audioManagerRef.current.cancelPreparedMicCapture?.();
       window.electronAPI?.unregisterCancelHotkey?.();
       const state = audioManagerRef.current.getState();
-      if (getSettings().pauseMediaOnDictation) {
-        window.electronAPI?.resumeMediaPlayback?.();
-      }
+      restoreOthersAfterDictation(getSettings().pauseMediaOnDictation);
+      promptOverlay("hidden");
       // A streaming start in its mic-open phase is not yet `isStreaming`;
       // only the streaming cancel knows how to abandon it.
       if (state.isStreaming || state.isStreamingStartInProgress) {

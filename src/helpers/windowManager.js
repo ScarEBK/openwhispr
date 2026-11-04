@@ -1652,6 +1652,7 @@ class WindowManager {
   }
 
   async showTranscriptionPreview(text) {
+    if (text) require("./promptOverlay").feedPartial(text);
     if (this._onboardingActive) return;
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     this.mainWindow.webContents.send("preview-text", text);

@@ -9779,6 +9779,7 @@ class IPCHandlers {
       }
       streaming.onPartialTranscript = (text) => {
         event.sender.send("dictation-realtime-partial", text);
+        if (text) require("./promptOverlay").feedPartial(text);
         if (this._dictationPreviewEnabled && text) {
           this.windowManager.showTranscriptionPreview(text);
         }
@@ -10794,6 +10795,8 @@ class IPCHandlers {
           try {
             const stream = await this.parakeetManager.createOnlineStream(model, {
               onUpdate: (text) => {
+                if (gen === dictationPreviewGen && text)
+                  require("./promptOverlay").feedPartial(text);
                 if (gen === dictationPreviewGen && text && dictationPreviewDisplay) {
                   this.windowManager.showTranscriptionPreview(text);
                 }
@@ -13104,6 +13107,54 @@ class IPCHandlers {
       } catch (error) {
         return { success: false, error: error?.message || String(error), ms: 0 };
       }
+    });
+
+    // --- Discord voice (mute while dictating) ---
+    ipcMain.handle("discord-voice-status", async () => require("./discordVoice").getStatus());
+    ipcMain.handle("discord-voice-set-credentials", async (_e, creds = {}) =>
+      require("./discordVoice").setCredentials({
+        clientId: String(creds.clientId || ""),
+        clientSecret: String(creds.clientSecret || ""),
+      })
+    );
+    ipcMain.handle("discord-voice-connect", async () => require("./discordVoice").connect());
+    ipcMain.handle("discord-voice-disconnect", async () => require("./discordVoice").disconnect());
+    ipcMain.handle("discord-voice-mute", async () => require("./discordVoice").muteForDictation());
+    ipcMain.handle("discord-voice-restore", async () =>
+      require("./discordVoice").restoreAfterDictation()
+    );
+
+    // --- Prompt Writer overlay box ---
+    ipcMain.handle("prompt-overlay-update", async (_e, payload = {}) =>
+      require("./promptOverlay").update({
+        state: String(payload.state || "hidden"),
+        label: String(payload.label || ""),
+        text: String(payload.text || ""),
+      })
+    );
+
+    // --- Auto send: press Enter in the focused app after a paste ---
+    ipcMain.handle("send-enter-key", async () => {
+      if (process.platform !== "win32") return { success: false, error: "Windows only" };
+      const nircmd = this.clipboardManager?.getNircmdPath?.();
+      const { execFile } = require("child_process");
+      return new Promise((resolve) => {
+        const done = (err) => resolve({ success: !err, error: err?.message });
+        if (nircmd) {
+          execFile(nircmd, ["sendkeypress", "enter"], { windowsHide: true, timeout: 3000 }, done);
+        } else {
+          execFile(
+            "powershell.exe",
+            [
+              "-NoProfile",
+              "-Command",
+              "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')",
+            ],
+            { windowsHide: true, timeout: 5000 },
+            done
+          );
+        }
+      });
     });
 
     ipcMain.handle("prompt-writer-presets", async () => {

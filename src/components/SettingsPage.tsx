@@ -80,6 +80,7 @@ import PromptStudio from "./ui/PromptStudio";
 import { ProviderTabs } from "./ui/ProviderTabs";
 import { HotkeyListInput } from "./ui/HotkeyListInput";
 import PromptWriterSettings from "./settings/PromptWriterSettings";
+import DictationExtrasSettings from "./settings/DictationExtrasSettings";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { useHotkeyModeInfo } from "../hooks/useHotkeyModeInfo";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -4118,6 +4119,9 @@ EOF`,
               validate={validatePromptWriterHotkey}
               disabled={isAgentHotkeyCommitting}
             />
+
+            {/* Auto send + Discord mute */}
+            <DictationExtrasSettings />
 
             {/* Meeting Mode Hotkey */}
             <div>
