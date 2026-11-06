@@ -24,3 +24,14 @@
 
 - Prompt box sits **right above the text box being typed in** (T3 Code, Claude), on that screen. Not fixed bottom-center.
 - **Hide the right-side OpenWhispr bubble for Page Up**; keep it for Delete.
+
+## 2026-11-05 — Voice input reliability + T3 Code mic
+
+- **Cause found:** mostly the speech model (streaming Nemotron mishears names, ignores the custom word list). Mic is quiet (peaks ~-17 dB) but not the main cause. Delete-key light cleanup was OFF (useCleanupModel=false), so raw words got pasted and agents replied "I don't know what you mean".
+- **"The other version" (speed point)** = the Delete key (plain words): fast but does nothing.
+- **Speech model:** accurate model after you stop (not live). OK to add ~5-10 sec.
+- **Runs where:** on the machine the chat is on (PC chats on PC, VPS chats on VPS).
+- **T3 mic modes:** one mode only: always smart rewrite (Opus, same writing style as Page Up) using that chat's memory, then auto send.
+- **Memory:** per project/chat, from what the owner and agent said in that conversation.
+- **OpenWhispr:** keep it for apps outside T3 Code (Discord, browser, games) and plug it into the same better model.
+- **Applied 2026-11-05:** speech model switched to Parakeet TDT 0.6B v3 (after-stop, ~3 sec, adds punctuation; same files as Scar Mic). Page Up prompt writer got the owner's names list + "never reply, always rewrite" as extra instructions. LLM cleanup for Delete stays off on purpose: the new model already punctuates, and an LLM cleanup can answer instead of clean.
