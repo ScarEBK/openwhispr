@@ -1154,6 +1154,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   discordVoiceMute: () => ipcRenderer.invoke("discord-voice-mute"),
   discordVoiceRestore: () => ipcRenderer.invoke("discord-voice-restore"),
   promptOverlayUpdate: (payload) => ipcRenderer.invoke("prompt-overlay-update", payload),
+  promptOverlayPartial: (text) => ipcRenderer.invoke("prompt-overlay-partial", text),
   sendEnterKey: () => ipcRenderer.invoke("send-enter-key"),
   onPreviewText: registerListener("preview-text", (callback) => (_event, text) => callback(text)),
   onPreviewAppend: registerListener(

@@ -34,4 +34,13 @@
 - **T3 mic modes:** one mode only: always smart rewrite (Opus, same writing style as Page Up) using that chat's memory, then auto send.
 - **Memory:** per project/chat, from what the owner and agent said in that conversation.
 - **OpenWhispr:** keep it for apps outside T3 Code (Discord, browser, games) and plug it into the same better model.
-- **Applied 2026-11-05:** speech model switched to Parakeet TDT 0.6B v3 (after-stop, ~3 sec, adds punctuation; same files as Scar Mic). Page Up prompt writer got the owner's names list + "never reply, always rewrite" as extra instructions. LLM cleanup for Delete stays off on purpose: the new model already punctuates, and an LLM cleanup can answer instead of clean.
+- **Applied 2026-11-05 (speed point changed 2026-11-12, see below):** speech model switched to Parakeet TDT 0.6B v3 (after-stop, ~3 sec, adds punctuation; same files as Scar Mic). Page Up prompt writer got the owner's names list + "never reply, always rewrite" as extra instructions. LLM cleanup for Delete stays off on purpose: the new model already punctuates, and an LLM cleanup can answer instead of clean.
+
+## 2026-11-12 — Page Up too slow
+
+- **Main problem: speed.** Page Up waits ~4 s after stop before the rewrite even starts, then writes for several more seconds. Plain dictation feels faster and more accurate. Wants it "really impressive".
+- **Measured:** 40 s note = ~4-5 s speech-to-text after stop + ~3 s `claude` startup + ~3 s writing ≈ 10 s. Haiku saves only ~1 s, so the model stays Opus.
+- **Which plain dictation is better:** "whatever is the best" (owner doesn't mind; make Page Up's own speech-to-text as good as possible).
+- **Speed fixes:** all of them: start the AI while the owner talks, show the rewrite live in the box, transcribe while talking so stop is near-instant. Replaces the 11-05 "OK to add ~5-10 sec".
+- **Chat context in Page Up:** no. The chat itself restates long voice messages ("brief-back" in the Claude setup), zero extra wait.
+- **Rewrite style stays:** faithful and concise, no "Done when" section (11-05 rule kept).

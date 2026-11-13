@@ -53,8 +53,10 @@ export class PcmTap {
       this._flushResolve?.();
       return;
     }
-    if (this._dropped) return;
     const chunk = new Int16Array(data);
+    // The live listener gets every frame, even past the WAV length cap.
+    this._listener?.(chunk);
+    if (this._dropped) return;
     this._samples += chunk.length;
     if (this._samples > this._maxSamples) {
       this._dropped = true;
@@ -62,6 +64,13 @@ export class PcmTap {
       return;
     }
     this._chunks.push(chunk);
+  }
+
+  // Hands every captured frame to `fn` as it arrives, starting with the frames
+  // already captured (the pre-roll), so it sees the recording from its start.
+  setListener(fn) {
+    this._listener = fn;
+    if (fn) for (const chunk of this._chunks) fn(chunk);
   }
 
   // Feeds the recorder's stream, or moves the tap onto a replacement mic.
@@ -106,6 +115,7 @@ export class PcmTap {
   }
 
   close() {
+    this._listener = null;
     this._chunks = [];
     this._samples = 0;
     this._node?.disconnect();

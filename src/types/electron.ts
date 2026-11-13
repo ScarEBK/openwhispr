@@ -3161,6 +3161,7 @@ declare global {
         label?: string;
         text?: string;
       }) => Promise<void>;
+      promptOverlayPartial?: (text: string) => Promise<void>;
       sendEnterKey?: () => Promise<{ success: boolean; error?: string }>;
       createAgentConversation?: (
         title: string,

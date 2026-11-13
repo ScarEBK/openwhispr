@@ -45,13 +45,17 @@ const CLI_PRESETS = {
       "--no-session-persistence",
       "--setting-sources",
       "",
+      // Streamed so the box can show the rewrite word by word as it is written.
       "--output-format",
-      "text",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
     ],
     // Keep the user's personal CLAUDE.md rules out of the prompt writer.
     env: { CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" },
     stdinIncludesSystemPrompt: false,
     readsOutputFile: false,
+    streamsJson: true,
   },
   codex: {
     label: "ChatGPT (your ChatGPT plan, via Codex CLI)",
@@ -130,9 +134,54 @@ function buildSystemPrompt(extraInstructions) {
     : PROMPT_WRITER_SYSTEM_PROMPT;
 }
 
+// Reads Claude Code's stream-json lines: text pieces as they are written, then
+// one "result" line with the finished text.
+function createStreamReader(onText) {
+  let pending = "";
+  let written = "";
+  let result = null;
+  const readLine = (line) => {
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      return;
+    }
+    if (
+      event.type === "stream_event" &&
+      event.event?.type === "content_block_delta" &&
+      event.event.delta?.type === "text_delta"
+    ) {
+      written += event.event.delta.text || "";
+      try {
+        onText?.(written);
+      } catch {
+        // the box is optional
+      }
+    } else if (event.type === "result") {
+      result = { text: typeof event.result === "string" ? event.result : "", isError: !!event.is_error };
+    }
+  };
+  return {
+    push(data) {
+      pending += data;
+      let newline;
+      while ((newline = pending.indexOf("\n")) >= 0) {
+        readLine(pending.slice(0, newline).trim());
+        pending = pending.slice(newline + 1);
+      }
+    },
+    finish() {
+      if (pending.trim()) readLine(pending.trim());
+      pending = "";
+      return { written, result };
+    },
+  };
+}
+
 /**
  * @param {{ text: string, tool?: string, model?: string, extraInstructions?: string,
- *           customPath?: string, timeoutMs?: number }} options
+ *           customPath?: string, timeoutMs?: number, onText?: (textSoFar: string) => void }} options
  * @returns {Promise<{ success: boolean, text?: string, error?: string, ms: number }>}
  */
 async function runPromptWriter({
@@ -142,6 +191,7 @@ async function runPromptWriter({
   extraInstructions,
   customPath,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  onText,
 }) {
   const started = Date.now();
   const preset = CLI_PRESETS[tool];
@@ -162,6 +212,7 @@ async function runPromptWriter({
     : `<voice_note>\n${transcript}\n</voice_note>`;
 
   const { file, useShell } = resolveCommand(preset.command, customPath);
+  const stream = preset.streamsJson ? createStreamReader(onText) : null;
 
   try {
     const result = await new Promise((resolve) => {
@@ -192,7 +243,11 @@ async function runPromptWriter({
         }
         finish({ code: -1, stdout, stderr, timedOut: true });
       }, timeoutMs);
-      child.stdout.on("data", (d) => (stdout += d.toString("utf8")));
+      child.stdout.setEncoding("utf8");
+      child.stdout.on("data", (d) => {
+        if (stream) stream.push(d);
+        else stdout += d;
+      });
       child.stderr.on("data", (d) => (stderr += d.toString("utf8")));
       child.on("error", (err) => finish({ code: -1, stdout, stderr: err.message }));
       child.on("close", (code) => finish({ code, stdout, stderr }));
@@ -205,12 +260,22 @@ async function runPromptWriter({
       return { success: false, error: "The prompt writer took too long and was stopped.", ms };
     }
     let output = result.stdout;
+    let streamError = "";
+    if (stream) {
+      const { written, result: final } = stream.finish();
+      if (final?.isError) streamError = final.text || "Claude reported an error.";
+      else output = final?.text || written;
+    }
     if (preset.readsOutputFile && fs.existsSync(outputFile)) {
       output = fs.readFileSync(outputFile, "utf8");
     }
     output = (output || "").trim();
-    if (result.code !== 0 || !output) {
-      const why = (result.stderr || result.stdout || "").trim().split(/\r?\n/).slice(-3).join(" ");
+    if (result.code !== 0 || streamError || !output) {
+      const why = (streamError || result.stderr || result.stdout || "")
+        .trim()
+        .split(/\r?\n/)
+        .slice(-3)
+        .join(" ");
       debugLogger.warn("Prompt writer failed", { tool, code: result.code, why }, "reasoning");
       return {
         success: false,

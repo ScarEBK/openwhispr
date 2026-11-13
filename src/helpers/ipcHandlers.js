@@ -13097,12 +13097,15 @@ class IPCHandlers {
     ipcMain.handle("prompt-writer-run", async (_event, options = {}) => {
       const { runPromptWriter } = require("./promptWriter");
       try {
+        const overlay = require("./promptOverlay");
         return await runPromptWriter({
           text: String(options.text || ""),
           tool: String(options.tool || "claude"),
           model: String(options.model || ""),
           extraInstructions: String(options.extraInstructions || ""),
           customPath: String(options.customPath || ""),
+          // The rewrite appears in the box word by word while it is written.
+          onText: (textSoFar) => overlay.feedWriting(textSoFar),
         });
       } catch (error) {
         return { success: false, error: error?.message || String(error), ms: 0 };
@@ -13131,6 +13134,9 @@ class IPCHandlers {
         label: String(payload.label || ""),
         text: String(payload.text || ""),
       })
+    );
+    ipcMain.handle("prompt-overlay-partial", async (_e, text) =>
+      require("./promptOverlay").feedPartial(String(text || ""))
     );
 
     // --- Auto send: press Enter in the focused app after a paste ---

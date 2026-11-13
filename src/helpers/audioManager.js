@@ -31,6 +31,7 @@ import {
 } from "./preparedMicCapture";
 import { MicStreamHold } from "./micStreamHold";
 import { PcmTap } from "./pcmTap";
+import { LiveCommitter } from "./liveCommit";
 import { ActiveMicRecoveryController } from "./activeMicRecovery";
 import { followsSystemDefaultMic } from "./micSelectionRecovery";
 import { isCacheableMicrophoneResolution, resolvePreferredMicrophone } from "./microphoneSelection";
@@ -1476,6 +1477,32 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   _closeBatchPcmTap() {
     this._batchPcmTap?.close();
     this._batchPcmTap = null;
+    this._liveCommitter?.abort();
+    this._liveCommitter = null;
+  }
+
+  // Offline Parakeet: decode the recording in pieces while the person talks,
+  // so stopping only leaves the last few seconds. Page Up shows the words live.
+  _startLiveCommit() {
+    this._liveCommitter?.abort();
+    this._liveCommitter = null;
+    const tap = this._batchPcmTap;
+    const settings = getSettings();
+    if (!tap || settings.localTranscriptionProvider !== "nvidia") return;
+    const model = settings.parakeetModel || "parakeet-tdt-0.6b-v3";
+    const language = getBaseLanguageCode(this.getEffectiveSttLanguage(settings));
+    const committer = new LiveCommitter({
+      transcribe: async (wav) =>
+        window.electronAPI.transcribeLocalParakeet(await wav.arrayBuffer(), { model, language }),
+      onText: (text) => {
+        if (this.promptWriterRequested && this._liveCommitter === committer) {
+          window.electronAPI?.promptOverlayPartial?.(text)?.catch?.(() => {});
+        }
+      },
+      log: (message, data) => logger.debug(message, data, "performance"),
+    });
+    this._liveCommitter = committer;
+    tap.setListener((chunk) => committer.push(chunk));
   }
 
   _constraintsKey(constraints) {
@@ -1695,6 +1722,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // or the one built before the mic opened. A tap started now would miss
       // the opening, so an unusable pre-roll leaves the WebM path in charge.
       this._batchPcmTap = preRoll ? prepared.pcmTap : freshTap;
+      this._startLiveCommit();
       this._recordingSpool = this._startRecordingSpool();
       this.createBatchRecorder(micStream, preRoll);
       freshTap?.attach(micStream);
@@ -1899,6 +1927,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     });
     const rawWavPromise = this._batchPcmTap?.stop();
     this._batchPcmTap = null;
+    const liveCommitter = this._liveCommitter;
+    this._liveCommitter = null;
     this.isRecording = false;
     this.isProcessing = true;
     this.onStateChange?.({
@@ -1916,6 +1946,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       audioBlob = await this.mergeRecordedSegments(segments);
     } catch (error) {
       if (wasCancelled()) {
+        liveCommitter?.abort();
         this._settleProcessingPipeline(processingPipeline);
         return;
       }
@@ -1925,6 +1956,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       salvagedRecording = !!audioBlob;
     }
     if (wasCancelled()) {
+      liveCommitter?.abort();
       this._settleProcessingPipeline(processingPipeline);
       return;
     }
@@ -1960,6 +1992,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         },
         "audio"
       );
+      liveCommitter?.abort();
       if (!this._settleProcessingPipeline(processingPipeline)) return;
       this._localSpeechGateState = null;
       this.onTranscriptionComplete?.({ success: true, text: "" });
@@ -1968,11 +2001,17 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     // Non-commit sessions stop concurrently with the decode below.
     const previewStop = this._streamingCommitActive ? await previewStopPromise : null;
     if (wasCancelled()) {
+      liveCommitter?.abort();
       this._settleProcessingPipeline(processingPipeline);
       return;
     }
     this._streamingCommitActive = false;
     const rawWav = await rawWavPromise;
+    // The tap vouches for full coverage when it yields a WAV; past its length
+    // cap the committer checks the sample count against the duration itself.
+    const committedText = liveCommitter
+      ? await liveCommitter.finish(rawWav ? {} : { expectedSeconds: durationSeconds })
+      : null;
 
     await this.processAudio(
       audioBlob,
@@ -1980,7 +2019,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         durationSeconds,
         analyticsOccurredAt,
         ...(salvagedRecording ? { salvagedRecording: true } : {}),
-        ...(previewStop?.streamed ? { streamedText: previewStop.text } : {}),
+        ...(previewStop?.streamed
+          ? { streamedText: previewStop.text }
+          : committedText
+            ? { streamedText: committedText }
+            : {}),
         ...(rawWav ? { rawWav } : {}),
       },
       processingPipeline

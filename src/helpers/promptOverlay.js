@@ -33,6 +33,7 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8">
     overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;white-space:pre-wrap;word-break:break-word}
   #text:empty{display:none}
   .working #text{color:#8b8b98}
+  .working.live #text{color:#ececf1}
 </style></head><body>
 <div id="box"><div id="head"><span id="dot"></span><span id="label"></span><span id="time"></span></div><div id="text"></div></div>
 <script>
@@ -40,7 +41,7 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8">
   function tick(){document.getElementById('time').textContent=started?Math.floor((Date.now()-started)/1000)+'s':'';}
   window.__set=function(s){
     const box=document.getElementById('box');
-    box.className='show '+(s.state||'');
+    box.className='show '+(s.state||'')+(s.live?' live':'');
     document.getElementById('label').textContent=s.label||'';
     const t=s.text||'';
     document.getElementById('text').textContent=t.length>600?'\\u2026'+t.slice(-600):t;
@@ -145,6 +146,21 @@ class PromptOverlay {
     this.update({ state: "listening", label: this.label, text });
   }
 
+  /** The rewrite as it is being written; ignored unless the box is in "working". */
+  feedWriting(text) {
+    if (this.state !== "working" || !text) return;
+    this.pendingWriting = text;
+    if (this.writingTimer) return;
+    // At most ~12 repaints a second, always ending on the newest text.
+    this.writingTimer = setTimeout(() => {
+      this.writingTimer = null;
+      const latest = this.pendingWriting;
+      this.pendingWriting = null;
+      if (this.state !== "working" || !latest) return;
+      this.update({ state: "working", label: this.label, text: latest, live: true });
+    }, 80);
+  }
+
   _ensureWindow() {
     if (this.win && !this.win.isDestroyed()) return this.ready;
     this.win = new BrowserWindow({
@@ -215,7 +231,7 @@ class PromptOverlay {
   }
 
   /** state: listening | working | done | error | hidden */
-  async update({ state, label, text } = {}) {
+  async update({ state, label, text, live = false } = {}) {
     clearTimeout(this.hideTimer);
     if (state === "hidden") return this.hide();
     this.state = state;
@@ -231,7 +247,7 @@ class PromptOverlay {
       this.win.moveTop();
     }
     await this.win.webContents
-      .executeJavaScript(`window.__set(${JSON.stringify({ state, label, text })})`)
+      .executeJavaScript(`window.__set(${JSON.stringify({ state, label, text, live })})`)
       .catch(() => {});
     if (state === "done" || state === "error") {
       this.hideTimer = setTimeout(() => this.hide(), HIDE_AFTER_DONE_MS);
