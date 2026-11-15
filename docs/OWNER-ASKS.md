@@ -1,5 +1,9 @@
 # Owner answers (read before asking)
 
+## 2026-11-14: Delete key moves to T3's own mic
+
+"you can do the delete key [in T3]. But make sure you change the delete key on the whisper flow out and put it any other random key." -> OpenWhispr plain dictation = Insert. Page Up unchanged. OpenWhispr stays on for other apps ("Keep both").
+
 ## 2026-11-03 — Replacing Handy
 
 - **Base app:** Fork OpenWhispr (not Handy, not from scratch).
